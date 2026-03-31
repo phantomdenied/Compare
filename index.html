@@ -398,7 +398,7 @@ white-space: nowrap;
 </div>
 
 
-<!-- COMPARE FILTER BAR -->
+<!-- COMPARE FILTER BAR (hidden until compare runs) -->
 <div class="compare-filter-bar" id="compare-filter-bar">
   <span class="cf-label">Filter Results</span>
   <div class="color-pills">
@@ -426,14 +426,14 @@ white-space: nowrap;
   <div class="cmc-wrap">
     <span class="cmc-val" id="cf-cmc-min-val">0</span>
     <input type="range" id="cf-cmc-min" min="0" max="16" value="0" oninput="setCFCMC()">
-    <span style="color:var(--muted);font-size:11px">&#8211;</span>
+    <span style="color:var(--muted);font-size:11px">–</span>
     <input type="range" id="cf-cmc-max" min="0" max="16" value="16" oninput="setCFCMC()">
     <span class="cmc-val" id="cf-cmc-max-val">16+</span>
   </div>
   <div class="filter-divider"></div>
-  <span class="cf-loading" id="cf-loading" style="display:none">&#8987; Fetching card data...</span>
+  <span class="cf-loading" id="cf-loading" style="display:none">⏳ Fetching card data...</span>
   <span class="cf-count" id="cf-count" style="display:none"></span>
-  <button class="cf-clear" onclick="clearCFFilters()">&#10005; Clear Filters</button>
+  <button class="cf-clear" onclick="clearCFFilters()">✕ Clear Filters</button>
 </div>
 
 <div class="bookmarklet-box">
@@ -901,23 +901,19 @@ async function runComparison() {
     document.getElementById('deckSection').style.display = dn.length ? '' : 'none';
     document.getElementById('binderSection').style.display = bn.length ? '' : 'none';
 
-    // Store for filtering
+    // Store full results for filtering and show filter bar
     cfInDeck = inDeck;
     cfInBinder = inBinder;
     cfDataReady = false;
     cfCardData = {};
     clearCFFilters();
+    document.getElementById('compare-filter-bar').classList.add('visible');
 
-    // Show filter bar
-    const filterBar = document.getElementById('compare-filter-bar');
-    if (filterBar) filterBar.classList.add('visible');
-
-    // Kick off Scryfall fetch for matched cards
+    // Kick off Scryfall fetch for matched cards only
     const cfLoading = document.getElementById('cf-loading');
     const cfCountEl = document.getElementById('cf-count');
     if (cfLoading) cfLoading.style.display = '';
     if (cfCountEl) cfCountEl.style.display = 'none';
-
     const allMatchedNames = [...new Set([...inDeck, ...inBinder].map(c => c.name))];
     fetchCFCardData(allMatchedNames).then(() => {
       if (cfLoading) cfLoading.style.display = 'none';
@@ -1762,6 +1758,7 @@ function cfPassesFilters(card) {
   const data = cfCardData[norm(card.name)];
   const typeF = document.getElementById('cf-type') ? document.getElementById('cf-type').value : '';
 
+  // Color: strict AND — card must contain ALL selected colors
   if (cfColors.size > 0) {
     if (!data) return false;
     const colors = data.colorIdentity || [];
@@ -1776,10 +1773,12 @@ function cfPassesFilters(card) {
     }
   }
 
+  // Type filter
   if (typeF) {
     if (!data || !data.typeLine || !data.typeLine.includes(typeF)) return false;
   }
 
+  // CMC filter
   if (cfCMCMin > 0 || cfCMCMax < 16) {
     if (!data || data.cmc == null) return true;
     if (cfCMCMax >= 16) { if (data.cmc < cfCMCMin) return false; }
@@ -1815,13 +1814,11 @@ function applyCFFilters() {
 }
 
 async function fetchCFCardData(names) {
-  const toFetch = names.filter(n => !cfCardData.hasOwnProperty(norm(n)));
-  if (!toFetch.length) { cfDataReady = true; return; }
-
-  // Pull from advCache first (editor may have already fetched these)
+  // First pull from advCache (editor may have already loaded these)
   const stillNeeded = [];
-  for (const n of toFetch) {
+  for (const n of names) {
     const k = norm(n);
+    if (cfCardData.hasOwnProperty(k)) continue;
     if (advCache[k]) { cfCardData[k] = advCache[k]; }
     else { stillNeeded.push(n); }
   }
