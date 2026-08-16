@@ -241,7 +241,7 @@
 
   /* Editor table */
   .tbl-outer { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
-  .tbl-head { background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .tbl-head { background: var(--surface2); border-bottom: 1px solid var(--border); overflow-x: hidden; }
   .tbl-head table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .tbl-head th { padding: 10px 10px; text-align: left; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
   .tbl-head th:hover { color: var(--gold); }
@@ -691,7 +691,7 @@
       </div>
 
       <div class="tbl-outer">
-        <div class="tbl-head">
+        <div class="tbl-head" id="tbl-head">
           <table>
             <colgroup>
               <col style="width:36px"><col style="width:200px"><col style="width:56px"><col style="width:56px"><col style="width:130px"><col style="width:72px"><col style="width:62px">
@@ -2002,15 +2002,26 @@ function saveToLocal() {
   const entry = { ts: Date.now(), label: new Date().toLocaleString(), csv };
   versions.unshift(entry);
   while (versions.length > 3) versions.pop();
-  const ok = lsWriteChunked(CSV_PREFIX, versions);
+  let ok = lsWriteChunked(CSV_PREFIX, versions);
+  // Large collections (thousands of rows, alongside the Scryfall price cache)
+  // can exceed the browser's storage quota with 3 full snapshots retained.
+  // Keep dropping the oldest version and retrying rather than failing the
+  // save outright — the newest snapshot is what matters most.
+  let droppedVersions = 0;
+  while (!ok && versions.length > 1) {
+    versions.pop();
+    droppedVersions++;
+    ok = lsWriteChunked(CSV_PREFIX, versions);
+  }
   if (ok) {
-    document.getElementById('save-status').textContent = '✓ Saved at ' + entry.label;
+    const note = droppedVersions ? ` (kept only this version — storage is tight)` : '';
+    document.getElementById('save-status').textContent = '✓ Saved at ' + entry.label + note;
     document.getElementById('save-status').className = 'save-status ok';
     document.getElementById('last-saved-info').textContent = 'Last saved: ' + entry.label;
     populateVersionDropdown();
-    setTimeout(() => { document.getElementById('save-status').textContent = ''; document.getElementById('save-status').className = 'save-status'; }, 4000);
+    setTimeout(() => { document.getElementById('save-status').textContent = ''; document.getElementById('save-status').className = 'save-status'; }, 6000);
   } else {
-    document.getElementById('save-status').textContent = '✗ Save failed — storage full';
+    document.getElementById('save-status').textContent = '✗ Save failed — storage full. Your edits are still applied here; use ⬇ Download CSV below to keep them as a file.';
     document.getElementById('save-status').className = 'save-status err';
   }
 }
@@ -2167,6 +2178,12 @@ function setupBookmarklet() {
   const el = document.getElementById('bm-link');
   if (el) el.href = 'javascript:' + encodeURIComponent(code);
 }
+
+// Keep the fixed header row in horizontal sync with the scrollable table body
+// — .tbl-head has no scrollbar of its own, so this is the only thing moving it
+document.getElementById('tbl-scroll').addEventListener('scroll', function() {
+  document.getElementById('tbl-head').scrollLeft = this.scrollLeft;
+});
 
 // ===== INIT =====
 loadScryfallCache();
