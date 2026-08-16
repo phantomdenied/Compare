@@ -410,7 +410,7 @@
     <h1>QGs ManaBox Companion</h1>
     <p>ManaBox collection tools for Magic: The Gathering</p>
     <div class="header-meta">
-      <span class="ver-badge">v1.6</span>
+      <span class="ver-badge">v1.7</span>
       <a href="index2.html" class="test-link">Test Page →</a>
     </div>
     <div class="brand-meta">
@@ -2137,8 +2137,22 @@ function saveToLocal() {
     droppedVersions++;
     ok = lsWriteChunked(CSV_PREFIX, versions);
   }
+  // Still doesn't fit even at a single version — on some devices the real
+  // quota is tighter than the Scryfall price cache plus one CSV snapshot
+  // combined. The price cache is disposable (a free re-fetch rebuilds it);
+  // your edits are not. Clear it to make room and try once more before
+  // reporting failure.
+  let clearedCache = false;
+  if (!ok && (Object.keys(scryfallCache).length || Object.keys(advCache).length)) {
+    clearScryfallCache();
+    ok = lsWriteChunked(CSV_PREFIX, versions);
+    clearedCache = ok;
+  }
   if (ok) {
-    const note = droppedVersions ? ` (kept only this version — storage is tight)` : '';
+    const notes = [];
+    if (droppedVersions) notes.push('kept only this version');
+    if (clearedCache) notes.push('cleared price cache to make room — tap ↻ Refresh Prices to rebuild it');
+    const note = notes.length ? ` (${notes.join('; ')})` : '';
     document.getElementById('save-status').textContent = '✓ Saved at ' + entry.label + note;
     document.getElementById('save-status').className = 'save-status ok';
     document.getElementById('last-saved-info').textContent = 'Last saved: ' + entry.label;
@@ -2318,7 +2332,7 @@ setupBookmarklet();
 populateVersionDropdown();
 refreshSavedDeckDropdown();
 updateCacheInfo();
-console.log('QGs ManaBox Companion v1.6 loaded');
+console.log('QGs ManaBox Companion v1.7 loaded');
 </script>
 </body>
 </html>
