@@ -1982,6 +1982,12 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 // Splits large strings across multiple keys to avoid 5MB single-key limit
 const CHUNK_SIZE = 400000; // ~400KB per chunk, safe margin
 
+// Set by lsWriteChunked on failure so callers can show/log the browser's
+// actual error instead of always assuming it was a quota problem — a
+// SecurityError (storage blocked entirely) needs a different fix than a
+// genuine QuotaExceededError, and guessing wrong wastes everyone's time.
+let lastStorageError = null;
+
 function lsWriteChunked(prefix, data) {
   // Clear old chunks first
   lsClearChunked(prefix);
@@ -1992,8 +1998,11 @@ function lsWriteChunked(prefix, data) {
       localStorage.setItem(`${prefix}_${i}`, str.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
     }
     localStorage.setItem(`${prefix}_meta`, JSON.stringify({ chunks: total, ts: Date.now() }));
+    lastStorageError = null;
     return true;
   } catch(e) {
+    lastStorageError = e && e.name ? `${e.name}: ${e.message || ''}`.trim() : String(e);
+    console.warn('localStorage write failed:', lastStorageError);
     lsClearChunked(prefix);
     return false;
   }
@@ -2055,7 +2064,22 @@ function getStorageBreakdown() {
 function showStorageBreakdown() {
   const { total, groups } = getStorageBreakdown();
   const mb = n => (n / (1024 * 1024)).toFixed(2) + ' MB';
+  // Live test: is localStorage writable at all right now, independent of how
+  // much this app has already stored? Answers "totally blocked" vs. "just
+  // needs more room" directly instead of leaving it to inference.
+  let probe;
+  try {
+    localStorage.setItem('__mtg_probe__', 'x');
+    localStorage.removeItem('__mtg_probe__');
+    probe = '✓ Test write succeeded — localStorage is working right now.';
+  } catch (e) {
+    const name = e && e.name ? `${e.name}: ${e.message || ''}`.trim() : String(e);
+    probe = `✗ Test write FAILED — localStorage is blocked entirely for this site right now [${name}].`;
+  }
+  const lastErr = lastStorageError ? `\nMost recent save error: ${lastStorageError}` : '';
   alert([
+    probe,
+    '',
     `Total localStorage used by this app: ${mb(total)}`,
     `(this is separate from your phone's free space — mobile browsers cap each site to a small fixed amount)`,
     '',
@@ -2065,7 +2089,7 @@ function showStorageBreakdown() {
     `Saved deck library: ${mb(groups.savedDecks)}`,
     `Legacy/unused data: ${mb(groups.legacy)}`,
     `Other: ${mb(groups.other)}`,
-  ].join('\n'));
+  ].join('\n') + lastErr);
 }
 
 // One-time cleanup: the old single-key CSV format is superseded by the
@@ -2121,7 +2145,8 @@ function saveToLocal() {
     populateVersionDropdown();
     setTimeout(() => { document.getElementById('save-status').textContent = ''; document.getElementById('save-status').className = 'save-status'; }, 6000);
   } else {
-    document.getElementById('save-status').textContent = '✗ Save failed — storage full. Your edits are still applied here; use ⬇ Download CSV below to keep them as a file.';
+    const detail = lastStorageError ? ` [${lastStorageError}]` : '';
+    document.getElementById('save-status').textContent = `✗ Save failed${detail}. Your edits are still applied here; use ⬇ Download CSV below to keep them as a file.`;
     document.getElementById('save-status').className = 'save-status err';
   }
 }
@@ -2187,7 +2212,7 @@ const SCRYFALL_PREFIX = 'mtg_scryfall';
 function saveScryfallCache() {
   const data = { scryfallCache, advCache, ts: Date.now(), label: new Date().toLocaleString() };
   const ok = lsWriteChunked(SCRYFALL_PREFIX, data);
-  console.log(ok ? 'Scryfall cache saved' : 'Scryfall cache save failed — storage full');
+  console.log(ok ? 'Scryfall cache saved' : `Scryfall cache save failed [${lastStorageError}]`);
   updateCacheInfo();
   return ok;
 }
