@@ -335,59 +335,6 @@
   .bm-link { display:inline-block; padding:8px 18px; background:var(--surface2); border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.06em; text-decoration:none; cursor:grab; }
   .bm-link:hover { background:rgba(201,168,76,0.1); }
 
-  /* Price loading screen */
-  .price-loading-screen {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 48px 40px;
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  .price-loading-screen h3 {
-    font-family: 'Cinzel', serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--gold);
-    margin-bottom: 8px;
-    letter-spacing: 0.06em;
-  }
-  .price-loading-screen .warn {
-    font-size: 13px;
-    color: var(--muted);
-    font-style: italic;
-    margin-bottom: 28px;
-  }
-  .price-loading-screen .big-progress-track {
-    height: 10px;
-    background: var(--surface2);
-    border-radius: 5px;
-    overflow: hidden;
-    margin-bottom: 12px;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .price-loading-screen .big-progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, var(--gold), var(--gold2));
-    border-radius: 5px;
-    width: 0%;
-    transition: width 0.3s ease;
-  }
-  .price-loading-screen .price-load-stats {
-    display: flex;
-    justify-content: center;
-    gap: 32px;
-    margin-top: 16px;
-    flex-wrap: wrap;
-  }
-  .price-load-stat { text-align: center; }
-  .price-load-stat .val { font-family: 'Cinzel', serif; font-size: 22px; font-weight: 700; color: var(--text); }
-  .price-load-stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
-  .price-load-stat .val.gold { color: var(--gold); }
-  .price-load-stat .val.green { color: var(--green); }
-
   /* Hover card preview */
   #card-preview { position: fixed; z-index: 9999; pointer-events: none; display: none; width: 200px; border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.8); border: 1px solid var(--border); }
   #card-preview img { width: 100%; display: block; }
@@ -410,7 +357,7 @@
     <h1>QGs ManaBox Companion</h1>
     <p>ManaBox collection tools for Magic: The Gathering</p>
     <div class="header-meta">
-      <span class="ver-badge">v1.8</span>
+      <span class="ver-badge">v1.9</span>
       <a href="index2.html" class="test-link">Test Page →</a>
     </div>
     <div class="brand-meta">
@@ -593,23 +540,14 @@
   <div class="tab-pane" id="tab-editor">
     <div id="editorUploadPrompt" class="ed-upload-note">Upload your ManaBox CSV on the Compare tab first, then return here to edit your collection.</div>
     <div id="editorMain" style="display:none">
-      <!-- Price loading screen -->
-      <div id="price-loading-screen" class="price-loading-screen" style="display:none">
-        <h3>⚔ Loading Collection Prices</h3>
-        <p class="warn">⚠ Larger collections may take a minute — prices are fetched from Scryfall in batches of 75 cards.</p>
-        <div class="big-progress-track"><div class="big-progress-bar" id="pl-bar"></div></div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:8px">
-          <span id="pl-label">Preparing...</span>
-        </div>
-        <div class="price-load-stats">
-          <div class="price-load-stat"><div class="val gold" id="pl-priced">0</div><div class="lbl">Cards Priced</div></div>
-          <div class="price-load-stat"><div class="val" id="pl-unique">0</div><div class="lbl">Unique Names</div></div>
-          <div class="price-load-stat"><div class="val green" id="pl-value">$0</div><div class="lbl">Value So Far</div></div>
-          <div class="price-load-stat"><div class="val" id="pl-eta">—</div><div class="lbl">Est. Time Left</div></div>
-        </div>
-      </div>
-
       <div id="ed-content" style="display:none">
+      <!-- Price fetch progress — non-blocking; the table below is usable the
+           whole time, price/mana columns just fill in live as it runs -->
+      <div class="progress-wrap" id="pl-wrap" style="display:none">
+        <div class="progress-label"><span id="pl-label">Fetching prices...</span></div>
+        <div class="progress-track"><div class="progress-bar" id="pl-bar"></div></div>
+        <div class="progress-sub" id="pl-eta"></div>
+      </div>
       <div class="ed-stats">
         <div class="ed-stat"><div class="es-lbl">Total Cards</div><div class="es-val es-gold" id="es-total">0</div></div>
         <div class="ed-stat"><div class="es-lbl">Value</div><div class="es-val es-gold" id="es-value">$0</div></div>
@@ -1038,7 +976,7 @@ async function enrichCompareMatches(cards) {
       if (i + BATCH < missing.length) await new Promise(r => setTimeout(r, 100));
     }
     // Keep what we learned so the editor does not have to fetch it again
-    if (fetched) saveScryfallCache();
+    if (fetched) { savePriceCache(); saveCardDataCache(); }
   }
 
   for (const card of cards) {
@@ -1388,19 +1326,6 @@ function initEditor() {
   document.getElementById('editorUploadPrompt').style.display='none';
   document.getElementById('editorMain').style.display='';
 
-  // If already ready, just show content
-  if (editorReady) {
-    showEditorContent(true);
-    return;
-  }
-
-  // Show loading screen, hide content
-  showEditorContent(false);
-  document.getElementById('price-loading-screen').style.display='';
-
-  // A fetch is already running — let it finish and unlock the editor itself
-  if (priceFetchStarted && !priceFetchComplete) return;
-
   // Only reinit data if not already done
   if (!editorData.length) {
     editorData = collectionData.map(r=>({...r}));
@@ -1408,6 +1333,21 @@ function initEditor() {
     selectedIdxs.clear(); modifiedIdxs.clear(); removedIdxs.clear();
     buildBinderDropdowns();
   }
+
+  // The table itself never depended on Scryfall data — only the price/mana/
+  // CMC/color columns and filters do, and those fill in live as
+  // fetchAllPricesBatch() runs. Show it immediately (search, binder moves,
+  // CSV export all work right away) instead of blocking behind a loading
+  // screen until every price has arrived.
+  applyCachedPrices();
+  showEditorContent(true);
+  edFilter();
+  populateVersionDropdown();
+  updateCacheInfo();
+
+  // Already fully loaded, or a fetch is already running in the background
+  // and will keep updating the now-visible table as it progresses
+  if (editorReady || (priceFetchStarted && !priceFetchComplete)) return;
 
   // Coverage of the localStorage cache. Prices and advanced data (cmc/colors/
   // type/mana cost) are tracked separately: a legacy cache has prices but no
@@ -1417,8 +1357,7 @@ function initEditor() {
   const advCov = uniqueNames.length ? uniqueNames.filter(k => advCache.hasOwnProperty(k)).length / uniqueNames.length : 0;
 
   if (priceCov >= 0.95 && advCov >= 0.95) {
-    applyCachedPrices();
-    onPricesComplete();
+    editorReady = true;
   } else {
     if (priceCov >= 0.95) console.log('Price cache is missing card data — refetching to rebuild mana/CMC info');
     fetchAllPricesBatch();
@@ -1475,7 +1414,11 @@ function renderMana(cost) {
 
 function showEditorContent(show) {
   document.getElementById('ed-content').style.display = show ? '' : 'none';
-  document.getElementById('price-loading-screen').style.display = show ? 'none' : '';
+}
+
+function setPriceLoadBanner(show) {
+  const el = document.getElementById('pl-wrap');
+  if (el) el.style.display = show ? 'block' : 'none';
 }
 
 // ===== ADVANCED FILTERS =====
@@ -1758,6 +1701,7 @@ function removeSelected() {
 // ===== INLINE EDIT =====
 function openEdit(idx, btn) {
   const row = rowByIdx.get(idx); if(!row) return;
+  editingRowIdx = idx;
   const binders=[...new Set(editorData.map(r=>r.binderName).filter(Boolean))].sort();
   const bopts=binders.map(b=>`<option value="${esc(b)}"${b===row.binderName?' selected':''}>${esc(b)}</option>`).join('');
   const types=['binder','list','deck'];
@@ -1776,7 +1720,7 @@ function openEdit(idx, btn) {
     </td>`;
 }
 
-function cancelEdit() { edFilter(false); }
+function cancelEdit() { editingRowIdx = null; edFilter(false); }
 
 function saveEdit(idx) {
   const row=rowByIdx.get(idx); if(!row) return;
@@ -1784,12 +1728,18 @@ function saveEdit(idx) {
   if(bn) row.binderName=bn.value;
   if(bt) row.binderType=bt.value;
   modifiedIdxs.add(idx);
+  editingRowIdx = null;
   edFilter(false);
 }
 
 // ===== SCRYFALL BATCH PRICE FETCH =====
 let priceFetchStarted = false;
 let priceFetchComplete = false;
+// Guards the periodic live-render below from clobbering an open inline edit
+// (openEdit() replaces a <tr>'s innerHTML with input fields; a background
+// re-render mid-edit would blow that away). Set/cleared by openEdit/
+// cancelEdit/saveEdit.
+let editingRowIdx = null;
 
 function formatEta(seconds) {
   if (seconds <= 0) return 'Done!';
@@ -1801,6 +1751,7 @@ function formatEta(seconds) {
 async function fetchAllPricesBatch() {
   priceFetchStarted = true;
   priceFetchComplete = false;
+  setPriceLoadBanner(true);
 
   // Fetch anything missing a price OR missing advanced data (legacy caches have
   // prices only, which leaves the mana column and CMC/color filters empty)
@@ -1812,11 +1763,8 @@ async function fetchAllPricesBatch() {
   const total = toFetch.length;
 
   document.getElementById('pl-bar').style.width = '0%';
-  document.getElementById('pl-unique').textContent = total.toLocaleString();
-  document.getElementById('pl-priced').textContent = '0';
-  document.getElementById('pl-value').textContent = '$0';
-  document.getElementById('pl-eta').textContent = '—';
-  document.getElementById('pl-label').textContent = `Fetching prices for ${total.toLocaleString()} unique cards...`;
+  document.getElementById('pl-eta').textContent = '';
+  document.getElementById('pl-label').textContent = `⚔ Fetching prices for ${total.toLocaleString()} unique cards...`;
 
   if (total === 0) {
     applyCachedPrices();
@@ -1825,8 +1773,9 @@ async function fetchAllPricesBatch() {
   }
 
   const BATCH = 75;
-  let done = 0, priced = 0, failedBatches = 0;
+  let done = 0, failedBatches = 0;
   const startTime = Date.now();
+  let lastLiveRender = 0;
 
   try {
     for (let i = 0; i < toFetch.length; i += BATCH) {
@@ -1843,7 +1792,6 @@ async function fetchAllPricesBatch() {
             const k = norm(card.name);
             const p = parseFloat(card.prices?.usd || card.prices?.usd_foil || '0');
             scryfallCache[k] = isNaN(p) ? null : p;
-            if (scryfallCache[k] != null) priced++;
             advCache[k] = {
               cmc: card.cmc ?? 0,
               colorIdentity: card.color_identity || [],
@@ -1868,17 +1816,23 @@ async function fetchAllPricesBatch() {
       done += batch.length;
       applyCachedPrices();
 
+      // Update the visible table as data arrives, throttled so a fast/warm
+      // run doesn't re-filter+re-sort thousands of rows on every single
+      // batch. Skipped entirely while a row is being inline-edited.
+      const now = Date.now();
+      if (editingRowIdx === null && (now - lastLiveRender > 250 || done >= total)) {
+        edFilter(false);
+        lastLiveRender = now;
+      }
+
       const pct = Math.round((done / total) * 100);
       const elapsed = (Date.now() - startTime) / 1000;
       const rate = elapsed > 0 ? done / elapsed : 0;
       const remaining = rate > 0 ? Math.ceil((total - done) / rate) : 0;
-      const totalVal = editorData.reduce((s,r) => s + (r.price || 0) * qty(r), 0);
 
       document.getElementById('pl-bar').style.width = pct + '%';
-      document.getElementById('pl-priced').textContent = priced.toLocaleString();
-      document.getElementById('pl-value').textContent = '$' + totalVal.toFixed(2);
-      document.getElementById('pl-eta').textContent = done >= total ? 'Done!' : formatEta(remaining);
-      document.getElementById('pl-label').textContent = `Batch ${Math.floor(i/BATCH)+1} of ${Math.ceil(total/BATCH)} — ${pct}% complete`;
+      document.getElementById('pl-eta').textContent = done >= total ? '' : `${done.toLocaleString()} of ${total.toLocaleString()} — about ${formatEta(remaining)} left`;
+      document.getElementById('pl-label').textContent = `⚔ Fetching prices — ${pct}% complete`;
 
       // Small delay between batches to respect Scryfall's rate limit
       if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 100));
@@ -1895,11 +1849,11 @@ function onPricesComplete() {
   priceFetchComplete = true;
   editorReady = true;
   applyCachedPrices();
-  saveScryfallCache();
+  savePriceCache();
+  saveCardDataCache();
 
-  // Init the editor UI now that prices are ready
   edFilter();
-  showEditorContent(true);
+  setPriceLoadBanner(false);
   populateVersionDropdown();
   updateCacheInfo();
 }
@@ -2045,7 +1999,7 @@ function lsGetMeta(prefix) {
 // over months of use and eat into a mobile browser's tight per-origin quota,
 // with no relationship to how much free space the device itself has.
 function getStorageBreakdown() {
-  const groups = { csv: 0, scryfall: 0, checklists: 0, checklistCount: 0, savedDecks: 0, legacy: 0, other: 0 };
+  const groups = { csv: 0, scryfall: 0, carddata: 0, checklists: 0, checklistCount: 0, savedDecks: 0, legacy: 0, other: 0 };
   let total = 0;
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -2053,6 +2007,7 @@ function getStorageBreakdown() {
     total += bytes;
     if (k === 'mtg_csv_versions') groups.legacy += bytes;
     else if (k.indexOf('mtg_csv') === 0) groups.csv += bytes;
+    else if (k.indexOf('mtg_carddata') === 0) groups.carddata += bytes;
     else if (k.indexOf('mtg_scryfall') === 0) groups.scryfall += bytes;
     else if (k.indexOf('mtg_deck_checklist_') === 0) { groups.checklists += bytes; groups.checklistCount++; }
     else if (k === 'mtg_saved_imported_decks') groups.savedDecks += bytes;
@@ -2085,6 +2040,7 @@ function showStorageBreakdown() {
     '',
     `CSV saves: ${mb(groups.csv)}`,
     `Price cache: ${mb(groups.scryfall)}`,
+    `Card data cache (mana/color/type, never needs refetching): ${mb(groups.carddata)}`,
     `Deck checklists: ${mb(groups.checklists)} across ${groups.checklistCount} saved list(s)`,
     `Saved deck library: ${mb(groups.savedDecks)}`,
     `Legacy/unused data: ${mb(groups.legacy)}`,
@@ -2138,13 +2094,13 @@ function saveToLocal() {
     ok = lsWriteChunked(CSV_PREFIX, versions);
   }
   // Still doesn't fit even at a single version — on some devices the real
-  // quota is tighter than the Scryfall price cache plus one CSV snapshot
-  // combined. The price cache is disposable (a free re-fetch rebuilds it);
-  // your edits are not. Clear it to make room and try once more before
-  // reporting failure.
+  // quota is tighter than the price cache plus one CSV snapshot combined.
+  // Prices are disposable (a free re-fetch rebuilds them); card facts
+  // (mana/color/type/CMC) are expensive to rebuild and never go stale, so
+  // only the price half gets sacrificed — never advCache.
   let clearedCache = false;
-  if (!ok && (Object.keys(scryfallCache).length || Object.keys(advCache).length)) {
-    clearScryfallCache();
+  if (!ok && Object.keys(scryfallCache).length) {
+    clearPriceCache();
     ok = lsWriteChunked(CSV_PREFIX, versions);
     clearedCache = ok;
   }
@@ -2221,29 +2177,63 @@ function autoLoadFromLocal() {
 }
 
 // ===== SCRYFALL CACHE SAVE/LOAD =====
+// Prices and card facts (mana cost/color identity/type/CMC) are stored
+// separately. Prices go stale and are cheap to re-fetch; card facts are
+// permanent (a card's mana cost never changes) and expensive to rebuild —
+// thousands of names round-tripped through Scryfall. Keeping them apart
+// means storage pressure only ever has to sacrifice the disposable half.
 const SCRYFALL_PREFIX = 'mtg_scryfall';
+const ADV_PREFIX = 'mtg_carddata';
 
-function saveScryfallCache() {
-  const data = { scryfallCache, advCache, ts: Date.now(), label: new Date().toLocaleString() };
+function savePriceCache() {
+  const data = { scryfallCache, ts: Date.now(), label: new Date().toLocaleString() };
   const ok = lsWriteChunked(SCRYFALL_PREFIX, data);
-  console.log(ok ? 'Scryfall cache saved' : `Scryfall cache save failed [${lastStorageError}]`);
+  console.log(ok ? 'Price cache saved' : `Price cache save failed [${lastStorageError}]`);
   updateCacheInfo();
   return ok;
 }
 
-function loadScryfallCache() {
-  const data = lsReadChunked(SCRYFALL_PREFIX);
-  if (!data) return false;
-  if (data.scryfallCache) { Object.assign(scryfallCache, data.scryfallCache); }
-  if (data.advCache) { Object.assign(advCache, data.advCache); }
-  console.log('Scryfall cache loaded —', Object.keys(scryfallCache).length, 'prices,', Object.keys(advCache).length, 'card details, saved:', data.label);
-  return true;
+function saveCardDataCache() {
+  const data = { advCache, ts: Date.now(), label: new Date().toLocaleString() };
+  const ok = lsWriteChunked(ADV_PREFIX, data);
+  console.log(ok ? 'Card data cache saved' : `Card data cache save failed [${lastStorageError}]`);
+  return ok;
 }
 
-function clearScryfallCache() {
+function loadCaches() {
+  const advData = lsReadChunked(ADV_PREFIX);
+  if (advData && advData.advCache) Object.assign(advCache, advData.advCache);
+
+  const priceData = lsReadChunked(SCRYFALL_PREFIX);
+  if (priceData) {
+    if (priceData.scryfallCache) Object.assign(scryfallCache, priceData.scryfallCache);
+    // One-time migration: pre-split saves bundled advCache into this same
+    // store. Split it into its own store now (only if a split store doesn't
+    // already exist) so a future quota-eviction can drop just the price
+    // half without losing card facts that took a full re-fetch to build.
+    if (priceData.advCache && !advData) {
+      Object.assign(advCache, priceData.advCache);
+      saveCardDataCache();
+      savePriceCache();
+    }
+  }
+  console.log('Caches loaded —', Object.keys(scryfallCache).length, 'prices,', Object.keys(advCache).length, 'card details');
+}
+
+function clearPriceCache() {
   lsClearChunked(SCRYFALL_PREFIX);
-  scryfallCache = {}; advCache = {};
+  scryfallCache = {};
   updateCacheInfo();
+}
+
+function clearCardDataCache() {
+  lsClearChunked(ADV_PREFIX);
+  advCache = {};
+}
+
+function clearAllCaches() {
+  clearPriceCache();
+  clearCardDataCache();
 }
 
 function updateCacheInfo() {
@@ -2265,13 +2255,13 @@ function updateCacheInfo() {
 function refreshPrices() {
   if (!editorData.length) { alert('Load your collection first.'); return; }
   if (!confirm('Refresh all prices from Scryfall? This will re-fetch everything.')) return;
-  clearScryfallCache();
+  clearAllCaches();
   editorReady = false;
   priceFetchStarted = false;
   priceFetchComplete = false;
   // Reset prices and card data on editorData
   for (const r of editorData) { r.price = null; r.cmc = null; r.colorIdentity = null; r.typeLine = null; r.manaCost = null; }
-  showEditorContent(false);
+  edFilter(false); // table stays visible; just show the now-blanked columns
   fetchAllPricesBatch();
 }
 
@@ -2326,13 +2316,13 @@ document.getElementById('tbl-scroll').addEventListener('scroll', function() {
 
 // ===== INIT =====
 migrateLegacyCsvVersions();
-loadScryfallCache();
+loadCaches();
 autoLoadFromLocal();
 setupBookmarklet();
 populateVersionDropdown();
 refreshSavedDeckDropdown();
 updateCacheInfo();
-console.log('QGs ManaBox Companion v1.8 loaded');
+console.log('QGs ManaBox Companion v1.9 loaded');
 </script>
 </body>
 </html>
