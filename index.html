@@ -63,6 +63,10 @@
   textarea:focus { outline: none; border-color: var(--gold); }
   textarea::placeholder { color: var(--muted); }
   .btn { display: block; width: 100%; padding: 14px; background: linear-gradient(135deg, #8b6914, var(--gold), #8b6914); background-size: 200% 100%; border: none; border-radius: var(--radius); font-family: 'Cinzel', serif; font-size: 15px; font-weight: 600; letter-spacing: 0.1em; color: #0a0b0f; cursor: pointer; transition: background-position 0.4s, transform 0.1s; margin-bottom: 28px; }
+  .include-decks-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 16px; }
+  .include-decks-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--text); }
+  .include-decks-row input[type="checkbox"] { margin: 0; }
+  .include-decks-hint { font-size: 12px; color: var(--muted); font-style: italic; }
   .btn:hover { background-position: 100% 0; transform: translateY(-1px); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
@@ -475,6 +479,10 @@
 ..."></textarea>
       </div>
     </div>
+    <div class="include-decks-row">
+      <label for="includeDecks"><input type="checkbox" id="includeDecks" checked>Count cards already in a deck as "owned"</label>
+      <span class="include-decks-hint">Uncheck to also list deck-only cards under Missing — useful if you don't want to break apart an existing deck to fulfill this list.</span>
+    </div>
     <button class="btn" id="compareBtn">⚔ Compare Collection</button>
     <div id="results">
 
@@ -611,7 +619,18 @@
       <div class="filter-row" id="primary-filters">
           <input type="text" id="ed-search" placeholder="Search card name..." oninput="debounceFilter()">
           <select id="ed-binder-filter" onchange="edFilter()"><option value="">All binders</option></select>
-
+          <select id="ed-sort-by" onchange="setEdSort(this.value)">
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
+            <option value="setCode-asc">Set A-Z</option>
+            <option value="setCode-desc">Set Z-A</option>
+            <option value="cmc-asc">Mana value low-high</option>
+            <option value="cmc-desc">Mana value high-low</option>
+            <option value="binderName-asc">Binder A-Z</option>
+            <option value="binderName-desc">Binder Z-A</option>
+            <option value="price-asc">Price low-high</option>
+            <option value="price-desc">Price high-low</option>
+          </select>
 
           <div class="filter-divider"></div>
           <div class="ppill active" data-price="" onclick="setPricePill(this,'')">Any $</div>
@@ -688,6 +707,7 @@
         <div class="filter-divider"></div>
         <span id="cache-info" style="font-size:12px;color:var(--muted)">No price cache saved yet</span>
         <button class="sbtn" onclick="refreshPrices()" style="font-size:11px">↻ Refresh Prices</button>
+        <button class="sbtn" onclick="showStorageBreakdown()" style="font-size:11px">🔍 Storage</button>
       </div>
 
       <div class="tbl-outer">
@@ -699,8 +719,8 @@
             <thead><tr>
               <th><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"></th>
               <th id="th-name" onclick="edSort('name')">Card Name</th>
-              <th id="th-set" onclick="edSort('setCode')">Set</th>
-              <th id="th-mana" onclick="edSort('cmc')">Mana</th>
+              <th id="th-setCode" onclick="edSort('setCode')">Set</th>
+              <th id="th-cmc" onclick="edSort('cmc')">Mana</th>
               <th id="th-binderName" onclick="edSort('binderName')">Binder</th>
               <th id="th-price" onclick="edSort('price')">Price</th>
               <th></th>
@@ -1271,14 +1291,18 @@ async function runComparison() {
     document.getElementById('compareBtn').textContent = '⏳ Comparing...';
     const map = {};
     for (const r of collectionData) { const k = norm(r.name); if (!map[k]) map[k]=[]; map[k].push(r); }
+    const includeDecks = document.getElementById('includeDecks')?.checked ?? true;
     const inDeck=[], inBinder=[], missing=[];
     for (const name of targets) {
       const k = norm(name), matches = map[k]||[];
-      if (!matches.length) { missing.push(name); continue; }
       const dr = matches.filter(r=>r.binderType==='deck');
       const br = matches.filter(r=>r.binderType!=='deck');
       const dl = [...new Set(dr.map(r=>r.binderName).filter(Boolean))];
       const bl = [...new Set(br.map(r=>r.binderName).filter(Boolean))];
+      // A card counts as "owned" (not Missing) if it's in a binder/list, or
+      // if it's in a deck AND deck copies are being counted as owned
+      const owned = br.length > 0 || (includeDecks && dr.length > 0);
+      if (!owned) missing.push(name);
       if (dr.length) inDeck.push({name,deckLabels:dl,binderLabels:bl});
       if (br.length) inBinder.push({name,deckLabels:dl,binderLabels:bl});
     }
@@ -1559,9 +1583,27 @@ function edFilter(resetLimit = true) {
 
 function edSort(key) {
   if (edSortKey===key) edSortDir*=-1; else { edSortKey=key; edSortDir=1; }
-  document.querySelectorAll('.tbl-head th').forEach(th=>th.classList.remove('sorted'));
-  const el=document.getElementById('th-'+key); if(el) el.classList.add('sorted');
+  applyEdSortUI();
   edFilter();
+}
+
+// Explicit "Sort by" dropdown — same edSortKey/edSortDir state as clicking a
+// column header, just addressable without needing that header on-screen
+// (useful once the table's been swiped sideways on mobile).
+function setEdSort(value) {
+  const dash = value.lastIndexOf('-');
+  edSortKey = value.slice(0, dash);
+  edSortDir = value.slice(dash + 1) === 'desc' ? -1 : 1;
+  applyEdSortUI();
+  edFilter();
+}
+
+function applyEdSortUI() {
+  document.querySelectorAll('.tbl-head th').forEach(th=>th.classList.remove('sorted'));
+  const th = document.getElementById('th-' + edSortKey);
+  if (th) th.classList.add('sorted');
+  const sel = document.getElementById('ed-sort-by');
+  if (sel) sel.value = edSortKey + '-' + (edSortDir === 1 ? 'asc' : 'desc');
 }
 
 function setPricePill(el, val) {
@@ -1985,6 +2027,64 @@ function lsGetMeta(prefix) {
   try { return JSON.parse(localStorage.getItem(`${prefix}_meta`) || 'null'); } catch { return null; }
 }
 
+// ===== STORAGE DIAGNOSTICS =====
+// Rough char-count-as-bytes breakdown of everything this app has ever
+// written to localStorage, grouped by what it's for. mtg_deck_checklist_*
+// gets a brand new permanent key for every distinct card list ever compared
+// (no cap, no expiry), and the pre-chunking mtg_csv_versions key is dead
+// weight once a chunked save exists — both are easy to silently accumulate
+// over months of use and eat into a mobile browser's tight per-origin quota,
+// with no relationship to how much free space the device itself has.
+function getStorageBreakdown() {
+  const groups = { csv: 0, scryfall: 0, checklists: 0, checklistCount: 0, savedDecks: 0, legacy: 0, other: 0 };
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    const bytes = k.length + (localStorage.getItem(k) || '').length;
+    total += bytes;
+    if (k === 'mtg_csv_versions') groups.legacy += bytes;
+    else if (k.indexOf('mtg_csv') === 0) groups.csv += bytes;
+    else if (k.indexOf('mtg_scryfall') === 0) groups.scryfall += bytes;
+    else if (k.indexOf('mtg_deck_checklist_') === 0) { groups.checklists += bytes; groups.checklistCount++; }
+    else if (k === 'mtg_saved_imported_decks') groups.savedDecks += bytes;
+    else groups.other += bytes;
+  }
+  return { total, groups };
+}
+
+function showStorageBreakdown() {
+  const { total, groups } = getStorageBreakdown();
+  const mb = n => (n / (1024 * 1024)).toFixed(2) + ' MB';
+  alert([
+    `Total localStorage used by this app: ${mb(total)}`,
+    `(this is separate from your phone's free space — mobile browsers cap each site to a small fixed amount)`,
+    '',
+    `CSV saves: ${mb(groups.csv)}`,
+    `Price cache: ${mb(groups.scryfall)}`,
+    `Deck checklists: ${mb(groups.checklists)} across ${groups.checklistCount} saved list(s)`,
+    `Saved deck library: ${mb(groups.savedDecks)}`,
+    `Legacy/unused data: ${mb(groups.legacy)}`,
+    `Other: ${mb(groups.other)}`,
+  ].join('\n'));
+}
+
+// One-time cleanup: the old single-key CSV format is superseded by the
+// chunked mtg_csv_* keys. If a chunked save already exists, the legacy key
+// is pure dead weight — reclaim it. If not, migrate its content into the
+// chunked format first so nothing is lost, then remove it.
+function migrateLegacyCsvVersions() {
+  const legacy = localStorage.getItem('mtg_csv_versions');
+  if (legacy === null) return;
+  if (!lsGetMeta(CSV_PREFIX)) {
+    try {
+      const versions = JSON.parse(legacy);
+      if (Array.isArray(versions) && versions.length) lsWriteChunked(CSV_PREFIX, versions.slice(0, 3));
+    } catch (e) { console.warn('Legacy CSV version migration failed:', e); }
+  }
+  localStorage.removeItem('mtg_csv_versions');
+  console.log('Cleaned up legacy mtg_csv_versions key');
+}
+
 // ===== LOCALSTORAGE CSV SAVE/RESTORE =====
 const CSV_PREFIX = 'mtg_csv';
 
@@ -2186,6 +2286,7 @@ document.getElementById('tbl-scroll').addEventListener('scroll', function() {
 });
 
 // ===== INIT =====
+migrateLegacyCsvVersions();
 loadScryfallCache();
 autoLoadFromLocal();
 setupBookmarklet();
