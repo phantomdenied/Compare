@@ -410,7 +410,7 @@
     <h1>QGs ManaBox Companion</h1>
     <p>ManaBox collection tools for Magic: The Gathering</p>
     <div class="header-meta">
-      <span class="ver-badge">v1.7</span>
+      <span class="ver-badge">v1.8</span>
       <a href="index2.html" class="test-link">Test Page →</a>
     </div>
     <div class="brand-meta">
@@ -480,8 +480,8 @@
       </div>
     </div>
     <div class="include-decks-row">
-      <label for="includeDecks"><input type="checkbox" id="includeDecks" checked>Count cards already in a deck as "owned"</label>
-      <span class="include-decks-hint">Uncheck to also list deck-only cards under Missing — useful if you don't want to break apart an existing deck to fulfill this list.</span>
+      <label for="includeDecks"><input type="checkbox" id="includeDecks">Count cards already in a deck as "owned"</label>
+      <span class="include-decks-hint">Off by default — a card that's only in a deck still shows under Missing, so you know what to actually buy. Check this if deck copies should count as already owned.</span>
     </div>
     <button class="btn" id="compareBtn">⚔ Compare Collection</button>
     <div id="results">
@@ -2332,7 +2332,7 @@ setupBookmarklet();
 populateVersionDropdown();
 refreshSavedDeckDropdown();
 updateCacheInfo();
-console.log('QGs ManaBox Companion v1.7 loaded');
+console.log('QGs ManaBox Companion v1.8 loaded');
 </script>
 </body>
 </html>
