@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTG Collection Comparator</title>
+<title>QGs ManaBox Companion</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -80,7 +80,11 @@
   .section-header h2 { font-size:18px; font-family: 'Cinzel', serif; font-size: 18px; font-weight: 600; letter-spacing: 0.06em; }
   .section-toggle { margin-left: auto; color: var(--muted); font-size: 18px; transition: transform 0.2s; }
   .section.collapsed .section-toggle { transform: rotate(-90deg); }
-  .section.collapsed .section-body { display: none; }
+  /* Smooth collapse: animate the body's row track from 1fr to 0fr */
+  .section-body { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 0.28s ease, opacity 0.2s ease; }
+  /* padding + matching negative margin gives card hover lift room without changing layout */
+  .section-body > * { min-height: 0; overflow: hidden; padding: 8px 8px 20px; margin: -8px -8px -20px; }
+  .section.collapsed .section-body { grid-template-rows: 0fr; opacity: 0; }
   .badge { font-family: 'Cinzel', serif; font-size: 11px; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.06em; }
   .badge-deck { background: rgba(74,127,193,0.2); color: var(--blue); border: 1px solid rgba(74,127,193,0.3); }
   .badge-binder { background: rgba(74,156,111,0.2); color: var(--green); border: 1px solid rgba(74,156,111,0.3); }
@@ -189,9 +193,6 @@
   }
   .filter-row input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,168,76,0.15); }
   .filter-row input#ed-search { width: 170px; }
-  .filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--gold); }
-  .filter-row input#ed-search { width: 170px; }
-  .filter-row select option { background: var(--surface2); }
   .filter-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
   .ppill { font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; color: var(--muted); font-family: 'Cinzel', serif; letter-spacing: 0.04em; transition: all 0.15s; white-space: nowrap; }
   .ppill:hover { border-color: var(--gold); color: var(--gold); }
@@ -229,7 +230,7 @@
   .bulk-bar .sel-count { font-family: 'Cinzel', serif; color: var(--gold); font-size: 13px; white-space: nowrap; }
   .bulk-bar .sel-val { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .bulk-spacer { flex: 1; }
-  .bulk-bar select { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 5px 8px; }
+  .bulk-bar select { background-color: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 5px 26px 5px 10px; }
   .bulk-bar label { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .sbtn { font-size: 12px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; color: var(--text); font-family: 'Cinzel', serif; letter-spacing: 0.04em; transition: all 0.15s; white-space: nowrap; }
   .sbtn:hover { border-color: var(--gold); color: var(--gold); }
@@ -238,14 +239,14 @@
   .sbtn.danger { border-color: rgba(193,74,74,0.4); color: var(--red); }
   .sbtn.danger:hover { background: rgba(193,74,74,0.1); }
 
-  /* Virtual scroll table */
+  /* Editor table */
   .tbl-outer { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
   .tbl-head { background: var(--surface2); border-bottom: 1px solid var(--border); }
   .tbl-head table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .tbl-head th { padding: 10px 10px; text-align: left; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
   .tbl-head th:hover { color: var(--gold); }
   .tbl-head th.sorted { color: var(--gold); }
-  .tbl-scroll { overflow-y: visible; max-height: none; overflow-x: auto; }
+  .tbl-scroll { overflow-y: visible; max-height: none; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tbl-scroll table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .tbl-scroll tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
   .tbl-scroll tbody tr:last-child { border-bottom: none; }
@@ -254,7 +255,6 @@
   .tbl-scroll tbody tr.selected { background: rgba(74,127,193,0.08); }
   .tbl-scroll tbody tr.selected.modified { background: rgba(201,168,76,0.1); }
   .tbl-scroll td { padding: 8px 10px; color: var(--text); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tbl-scroll { overflow-y: visible; max-height: none; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tbl-scroll table, .tbl-head table { min-width: 720px; }
 
   @media (max-width: 640px) {
@@ -305,10 +305,6 @@
   .edit-btn-sm:hover { border-color: var(--gold); color: var(--gold); }
   input[type="checkbox"] { accent-color: var(--gold); width: 14px; height: 14px; cursor: pointer; }
 
-  /* Virtual scroll spacers */
-  .vs-spacer-top, .vs-spacer-bot { background: transparent; }
-  .vs-spacer-top td, .vs-spacer-bot td { padding: 0; border: none; }
-
   .ed-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }
   .ed-footer-info { font-size: 13px; color: var(--muted); }
   .ed-footer-info strong { color: var(--text); }
@@ -320,7 +316,7 @@
   /* Save/version bar */
   .save-bar { display:flex; gap:8px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 14px; margin-bottom:14px; flex-wrap:wrap; }
   .save-bar label { font-size:12px; color:var(--muted); font-family:'Cinzel',serif; letter-spacing:0.06em; white-space:nowrap; }
-  .save-bar select { background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; padding:5px 8px; }
+  .save-bar select { background-color:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; padding:5px 26px 5px 10px; }
   .save-bar select option { background:var(--surface2); }
   .save-status { font-size:12px; color:var(--muted); font-style:italic; }
   .save-status.ok { color:var(--green); }
@@ -407,10 +403,10 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Collection Comparator</h1>
+    <h1>QGs ManaBox Companion</h1>
     <p>ManaBox collection tools for Magic: The Gathering</p>
     <div class="header-meta">
-      <span class="ver-badge">v1.0</span>
+      <span class="ver-badge">v1.5</span>
       <a href="index2.html" class="test-link">Test Page →</a>
     </div>
     <div class="brand-meta">
@@ -605,12 +601,6 @@
         </div>
       </div>
 
-      <div class="progress-wrap" id="ed-progress-wrap" style="display:none">
-        <div class="progress-label" id="ed-progress-label">Loading... <span id="ed-progress-text"></span></div>
-        <div class="progress-track"><div class="progress-bar" id="ed-progress-bar"></div></div>
-        <div class="progress-sub" id="ed-progress-sub"></div>
-      </div>
-
       <div id="ed-content" style="display:none">
       <div class="ed-stats">
         <div class="ed-stat"><div class="es-lbl">Total Cards</div><div class="es-val es-gold" id="es-total">0</div></div>
@@ -765,6 +755,8 @@ let matchActiveColors = new Set();
 let edRenderLimit = 200;
 let importedDeckChecklist = [];
 let currentDeckName = '';
+let rowByIdx = new Map();   // _idx -> editorData row, for O(1) lookups
+const ROWS_PER_PAGE = 200;
 
 function compactNum(n) {
   try { return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n || 0).toLowerCase(); }
@@ -779,12 +771,6 @@ function compactMoney(n) {
   try { return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n || 0).replace(/([A-Z])$/, m => m.toLowerCase()); }
   catch(e) { return compactNum(n); }
 }
-
-
-
-const ROW_H = 37;
-const BUFFER = 10;
-const VISIBLE = 50;
 
 // ===== TAB =====
 function switchTab(tab) {
@@ -820,13 +806,22 @@ function setupDropZone(dzId, filenameId, onLoad) {
   });
 }
 
+// Drop everything derived from the previous collection when a new one arrives
+function resetEditorState() {
+  editorData = []; editorFiltered = []; rowByIdx = new Map();
+  selectedIdxs.clear(); modifiedIdxs.clear(); removedIdxs.clear();
+  showSelectedOnly = false;
+  const ssb = document.getElementById('show-selected-btn');
+  if (ssb) { ssb.classList.remove('gold'); ssb.textContent = 'Show selected only'; }
+  editorReady = false; priceFetchStarted = false; priceFetchComplete = false;
+}
+
 setupFileInput('csvFile', 'csvFilename', text => {
-  // Reset editor state on new CSV
-  editorData = []; editorReady = false; priceFetchStarted = false; priceFetchComplete = false;
+  resetEditorState();
   parseCSVAsync(text, 'csvFilename');
 });
 setupDropZone('dropZone', 'csvFilename', text => {
-  editorData = []; editorReady = false; priceFetchStarted = false; priceFetchComplete = false;
+  resetEditorState();
   parseCSVAsync(text, 'csvFilename');
 });
 setupFileInput('listFile', 'listFilename', (text, name) => { document.getElementById('targetList').value = text; currentDeckName = (name || '').replace(/\.(txt|csv|text)$/i, ''); refreshSavedDeckDropdown(currentDeckName); });
@@ -991,6 +986,7 @@ async function enrichCompareMatches(cards) {
   const missing = unique.filter(name => !advCache[norm(name)]);
   if (missing.length) {
     const BATCH = 75;
+    let fetched = false;
     for (let i = 0; i < missing.length; i += BATCH) {
       const batch = missing.slice(i, i + BATCH);
       try {
@@ -1002,18 +998,27 @@ async function enrichCompareMatches(cards) {
         if (resp.ok) {
           const data = await resp.json();
           for (const card of (data.data || [])) {
-            advCache[norm(card.name)] = {
-              cmc: card.cmc || 0,
+            const k = norm(card.name);
+            advCache[k] = {
+              cmc: card.cmc ?? 0,
               colorIdentity: card.color_identity || [],
               typeLine: card.type_line || '',
               manaCost: card.mana_cost || ''
             };
+            if (!scryfallCache.hasOwnProperty(k)) {
+              const p = parseFloat(card.prices?.usd || card.prices?.usd_foil || '0');
+              scryfallCache[k] = isNaN(p) ? null : p;
+            }
+            fetched = true;
           }
         }
       } catch (e) {
         console.warn('Compare filter enrichment failed for batch', e);
       }
+      if (i + BATCH < missing.length) await new Promise(r => setTimeout(r, 100));
     }
+    // Keep what we learned so the editor does not have to fetch it again
+    if (fetched) saveScryfallCache();
   }
 
   for (const card of cards) {
@@ -1335,10 +1340,15 @@ function renderMissing(names) {
 function copyMissingToClipboard() {
   const items = document.querySelectorAll('#missingGrid .missing-item');
   if (!items.length) return;
+  // One "1 Card Name" per line, no set codes — TCGplayer mass entry format
   const text = Array.from(items).map(el=>'1 '+el.textContent.trim()).join('\n');
+  const b = document.getElementById('copyMissingBtn');
   navigator.clipboard.writeText(text).then(()=>{
-    const b=document.getElementById('copyMissingBtn'); b.textContent='✓ Copied!'; b.classList.add('copied');
+    b.textContent='✓ Copied!'; b.classList.add('copied');
     setTimeout(()=>{ b.textContent='📋 Copy for TCGplayer'; b.classList.remove('copied'); },2000);
+  }).catch(()=>{
+    b.textContent='✗ Copy blocked';
+    setTimeout(()=>{ b.textContent='📋 Copy for TCGplayer'; },2000);
   });
 }
 
@@ -1364,65 +1374,79 @@ function initEditor() {
   showEditorContent(false);
   document.getElementById('price-loading-screen').style.display='';
 
-  // Try loading Scryfall cache from localStorage
-  if (Object.keys(scryfallCache).length === 0) loadScryfallCache();
+  // A fetch is already running — let it finish and unlock the editor itself
+  if (priceFetchStarted && !priceFetchComplete) return;
 
   // Only reinit data if not already done
   if (!editorData.length) {
     editorData = collectionData.map(r=>({...r}));
+    rowByIdx = new Map(editorData.map(r => [r._idx, r]));
     selectedIdxs.clear(); modifiedIdxs.clear(); removedIdxs.clear();
-    const binders=[...new Set(editorData.map(r=>r.binderName).filter(Boolean))].sort();
-    const bf=document.getElementById('ed-binder-filter'), bd=document.getElementById('bulk-binder-dest');
-    bf.innerHTML='<option value="">All binders</option>';
-    bd.innerHTML='<option value="">— binder —</option>';
-    // Sort binders: binder type first, then list, then deck
-    const binderTypeMap = {};
-    editorData.forEach(r => { if (r.binderName) binderTypeMap[r.binderName] = r.binderType; });
-    const typeOrder = { 'binder': 0, 'list': 1, 'deck': 2 };
-    const sortedBinders = binders.sort((a, b) => {
-      const ta = typeOrder[binderTypeMap[a]] ?? 3;
-      const tb = typeOrder[binderTypeMap[b]] ?? 3;
-      return ta !== tb ? ta - tb : a.localeCompare(b);
-    });
-    // Add section labels
-    let lastType = null;
-    sortedBinders.forEach(b => {
-      const t = binderTypeMap[b] || 'other';
-      if (t !== lastType) {
-        const label = t === 'binder' ? '── Binders ──' : t === 'list' ? '── Lists ──' : '── Decks ──';
-        bf.innerHTML += `<option disabled>${label}</option>`;
-        bd.innerHTML += `<option disabled>${label}</option>`;
-        lastType = t;
-      }
-      bf.innerHTML += `<option value="${esc(b)}">${esc(b)}</option>`;
-      bd.innerHTML += `<option value="${esc(b)}">${esc(b)}</option>`;
-    });
+    buildBinderDropdowns();
   }
 
-  // If cache loaded and covers all cards, skip fetch
-  const cachedCount = Object.keys(scryfallCache).length;
-  const uniqueNames = new Set(editorData.map(r => norm(r.name)));
-  const coverage = cachedCount > 0 ? [...uniqueNames].filter(k => scryfallCache.hasOwnProperty(k)).length : 0;
-  const pct = uniqueNames.size > 0 ? coverage / uniqueNames.size : 0;
+  // Coverage of the localStorage cache. Prices and advanced data (cmc/colors/
+  // type/mana cost) are tracked separately: a legacy cache has prices but no
+  // advCache, which would leave the mana column and CMC filter empty.
+  const uniqueNames = [...new Set(editorData.map(r => norm(r.name)))];
+  const priceCov = uniqueNames.length ? uniqueNames.filter(k => scryfallCache.hasOwnProperty(k)).length / uniqueNames.length : 0;
+  const advCov = uniqueNames.length ? uniqueNames.filter(k => advCache.hasOwnProperty(k)).length / uniqueNames.length : 0;
 
-  if (pct >= 0.95) {
-    // 95%+ coverage from cache — apply and go
+  if (priceCov >= 0.95 && advCov >= 0.95) {
     applyCachedPrices();
     onPricesComplete();
-  } else if (!priceFetchStarted) {
+  } else {
+    if (priceCov >= 0.95) console.log('Price cache is missing card data — refetching to rebuild mana/CMC info');
     fetchAllPricesBatch();
   }
 }
 
+// Binder dropdowns, grouped: Binders → Lists → Decks with disabled section labels
+function buildBinderDropdowns() {
+  const bf=document.getElementById('ed-binder-filter'), bd=document.getElementById('bulk-binder-dest');
+  if (!bf || !bd) return;
+  const binderTypeMap = {};
+  editorData.forEach(r => { if (r.binderName) binderTypeMap[r.binderName] = r.binderType; });
+  const typeOrder = { 'binder': 0, 'list': 1, 'deck': 2 };
+  const sortedBinders = [...new Set(editorData.map(r=>r.binderName).filter(Boolean))].sort((a, b) => {
+    const ta = typeOrder[binderTypeMap[a]] ?? 3;
+    const tb = typeOrder[binderTypeMap[b]] ?? 3;
+    return ta !== tb ? ta - tb : a.localeCompare(b);
+  });
+  let bfHtml = '<option value="">All binders</option>';
+  let bdHtml = '<option value="">— binder —</option>';
+  let lastType = null;
+  sortedBinders.forEach(b => {
+    const t = binderTypeMap[b] || 'other';
+    if (t !== lastType) {
+      const label = t === 'binder' ? '── Binders ──' : t === 'list' ? '── Lists ──' : t === 'deck' ? '── Decks ──' : '── Other ──';
+      bfHtml += `<option disabled>${label}</option>`;
+      bdHtml += `<option disabled>${label}</option>`;
+      lastType = t;
+    }
+    bfHtml += `<option value="${esc(b)}">${esc(b)}</option>`;
+    bdHtml += `<option value="${esc(b)}">${esc(b)}</option>`;
+  });
+  bf.innerHTML = bfHtml;
+  bd.innerHTML = bdHtml;
+}
+
+const MANA_CLASS = { W:'ms-w', U:'ms-u', B:'ms-b', R:'ms-r', G:'ms-g', C:'ms-c' };
+
+// '{2}{W}{U}' -> coloured pip symbols. Hybrid/phyrexian pips ({W/U}, {G/P})
+// are shown as their first colour.
 function renderMana(cost) {
   if (!cost) return '<span class="pc-none">—</span>';
   const symbols = cost.match(/\{[^}]+\}/g) || [];
-  return '<span class="mana-cost">' + symbols.map(s => {
-    const inner = s.replace(/[{}]/g,'');
-    const cls = inner === 'W' ? 'ms-w' : inner === 'U' ? 'ms-u' : inner === 'B' ? 'ms-b' :
-                inner === 'R' ? 'ms-r' : inner === 'G' ? 'ms-g' : /^[0-9X]+$/.test(inner) ? 'ms-n' : 'ms-c';
-    return `<span class="ms ${cls}">${inner.length > 2 ? inner[0] : inner}</span>`;
-  }).join('') + '</span>';
+  if (!symbols.length) return '<span class="pc-none">—</span>';
+  const pips = symbols.map(s => {
+    const inner = s.replace(/[{}]/g, '');
+    const generic = /^[0-9X]+$/.test(inner);
+    const cls = generic ? 'ms-n' : (MANA_CLASS[inner[0]] || 'ms-c');
+    const label = generic ? inner : inner[0];
+    return `<span class="ms ${cls}">${esc(label)}</span>`;
+  }).join('');
+  return `<span class="mana-cost" title="${esc(cost)}">${pips}</span>`;
 }
 
 function showEditorContent(show) {
@@ -1473,71 +1497,64 @@ function debounceFilter() {
   filterDebounceTimer = setTimeout(() => edFilter(), 300);
 }
 
-function showEditorProgress(show, label, pct) {
-  const wrap = document.getElementById('ed-progress-wrap');
-  const bar = document.getElementById('ed-progress-bar');
-  const lbl = document.getElementById('ed-progress-label');
-  const txt = document.getElementById('ed-progress-text');
-  if (!wrap) return;
-  wrap.style.display = show ? 'block' : 'none';
-  if (bar) bar.style.width = (pct || 0) + '%';
-  if (lbl) lbl.innerHTML = label || '';
-  if (txt) txt.textContent = '';
+// Snapshot of every active filter, read once per pass instead of per row
+function currentFilters() {
+  return {
+    search: norm(document.getElementById('ed-search').value || ''),
+    binder: document.getElementById('ed-binder-filter').value,
+    type: document.getElementById('card-type-filter')?.value || '',
+    price: priceFilter,
+    colors: [...activeColors],
+    cmcMin, cmcMax
+  };
 }
 
-function edFilter() {
-  const search=(document.getElementById('ed-search').value||'').toLowerCase();
-  const bf=document.getElementById('ed-binder-filter').value;
-  const tf='';
-  const ff='';
-  editorFiltered = editorData.filter(r=>{
-    if (removedIdxs.has(r._idx)) return false;
-    if (search && !r.name.toLowerCase().includes(search)) return false;
-    if (bf && r.binderName!==bf) return false;
-    if (tf && r.binderType!==tf) return false;
-    const isFoil = r.foil && r.foil!=='normal' && r.foil!=='false' && r.foil!=='FALSE';
-    if (ff==='yes' && !isFoil) return false;
-    if (ff==='no' && isFoil) return false;
-    if (priceFilter==='under1') { if (r.price==null||r.price>=1) return false; }
-    else if (priceFilter!=='') { const min=parseFloat(priceFilter); if (r.price==null||r.price<min) return false; }
-    if (showSelectedOnly && !selectedIdxs.has(r._idx)) return false;
-    // Color filter
-    if (activeColors.size > 0) {
-      const colors = r.colorIdentity || [];
+// Single source of truth for "does this row pass the filters".
+// opts.ignorePrice / opts.ignoreSelection let bulk actions reuse the same logic.
+function rowMatches(r, f, opts = {}) {
+  if (removedIdxs.has(r._idx)) return false;
+  if (f.search && !norm(r.name).includes(f.search)) return false;
+  if (f.binder && r.binderName !== f.binder) return false;
+  if (!opts.ignorePrice) {
+    if (f.price === 'under1') { if (r.price == null || r.price >= 1) return false; }
+    else if (f.price !== '') { const min = parseFloat(f.price); if (r.price == null || r.price < min) return false; }
+  }
+  if (!opts.ignoreSelection && showSelectedOnly && !selectedIdxs.has(r._idx)) return false;
+  // Color identity — rows with no Scryfall data yet are kept
+  if (f.colors.length) {
+    const colors = r.colorIdentity || null;
+    if (colors) {
       const isColorless = colors.length === 0;
-      if (activeColors.has('C') && activeColors.size === 1) { if (!isColorless) return false; }
-      else if (activeColors.has('C')) {
-        const nonC = [...activeColors].filter(c => c !== 'C');
-        const matches = nonC.some(c => colors.includes(c)) || isColorless;
-        if (!matches) return false;
-      } else {
-        if (!([...activeColors].some(c => colors.includes(c)))) return false;
-      }
+      const nonC = f.colors.filter(c => c !== 'C');
+      if (f.colors.includes('C')) {
+        if (!(isColorless || nonC.some(c => colors.includes(c)))) return false;
+      } else if (!nonC.some(c => colors.includes(c))) return false;
     }
-    // CMC filter — only apply if data exists
-    if (r.cmc != null && (cmcMin > 0 || cmcMax < 16)) {
-      if (cmcMax >= 16) { if (r.cmc < cmcMin) return false; }
-      else { if (r.cmc < cmcMin || r.cmc > cmcMax) return false; }
-    } else if (r.cmc == null && (cmcMin > 0 || cmcMax < 16)) {
-      // No CMC data yet — don't exclude, just show with — 
-    }
-    // Card type filter
-    const typeF = document.getElementById('card-type-filter')?.value || '';
-    if (typeF && r.typeLine && !r.typeLine.includes(typeF)) return false;
-    return true;
-  });
-  // Sort
+  }
+  // CMC range — rows with no CMC data yet are kept
+  if (r.cmc != null && (f.cmcMin > 0 || f.cmcMax < 16)) {
+    if (r.cmc < f.cmcMin) return false;
+    if (f.cmcMax < 16 && r.cmc > f.cmcMax) return false;
+  }
+  // Card type — rows with no type data yet are kept
+  if (f.type && r.typeLine && !r.typeLine.includes(f.type)) return false;
+  return true;
+}
+
+function edFilter(resetLimit = true) {
+  const f = currentFilters();
+  editorFiltered = editorData.filter(r => rowMatches(r, f));
   editorFiltered.sort((a,b)=>{
     let av=a[edSortKey]??'', bv=b[edSortKey]??'';
     if (edSortKey==='price'){av=a.price??-1;bv=b.price??-1;}
+    if (edSortKey==='cmc'){av=a.cmc??-1;bv=b.cmc??-1;}
     if (typeof av==='string') av=av.toLowerCase();
     if (typeof bv==='string') bv=bv.toLowerCase();
     return av<bv?-edSortDir:av>bv?edSortDir:0;
   });
-  edRenderLimit = 200;
+  if (resetLimit) edRenderLimit = ROWS_PER_PAGE;
   updateEdStats();
   renderVS();
-  schedulePriceFetch();
 }
 
 function edSort(key) {
@@ -1569,22 +1586,20 @@ function updateEdStats() {
   document.getElementById('ef-total').textContent = active.length.toLocaleString();
   document.getElementById('ef-modified').textContent = modifiedIdxs.size+' modified';
   document.getElementById('ef-removed').textContent = removedIdxs.size+' removed';
-  const selArr=[...selectedIdxs];
-  const selVal=selArr.reduce((s,i)=>{const r=editorData.find(x=>x._idx===i);return s+(r?.price||0);},0);
+  const selVal=[...selectedIdxs].reduce((s,i)=>s+(rowByIdx.get(i)?.price||0),0);
   document.getElementById('bulk-count').textContent = compactNum(selectedIdxs.size)+' selected';
   document.getElementById('bulk-val').textContent = selectedIdxs.size>0?`· $${compactMoney(selVal)} selected value`:'';
 }
 
-// ===== VIRTUAL SCROLL =====
-let vsScrollTop = 0;
-function setupVirtualScroll() { /* simplified mobile-safe rendering */ }
-
+// ===== TABLE RENDER =====
 function renderVS() {
   const tbody = document.getElementById('ed-tbody');
   const total = editorFiltered.length;
   const visibleCount = Math.min(total, edRenderLimit);
+  const selectAllChk = document.getElementById('selectAllChk');
+  if (selectAllChk) selectAllChk.checked = total > 0 && editorFiltered.every(r => selectedIdxs.has(r._idx));
   if (!total) {
-    tbody.innerHTML='<tr><td colspan="7" style="padding:20px;color:var(--muted);font-style:italic;text-align:center">No cards match the current filters.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" style="padding:28px 20px;color:var(--muted);font-style:italic;text-align:center">No cards match these filters. Try clearing the search, binder or advanced filters.</td></tr>';
     const wrap = document.getElementById('ed-loadmore-wrap');
     if (wrap) wrap.style.display = 'none';
     return;
@@ -1619,7 +1634,7 @@ function renderVS() {
     if (visibleCount < total) {
       wrap.style.display = '';
       txt.textContent = `Showing ${visibleCount.toLocaleString()} of ${total.toLocaleString()} rows`;
-      btn.textContent = `Show ${Math.min(200, total - visibleCount).toLocaleString()} more`;
+      btn.textContent = `Show ${Math.min(ROWS_PER_PAGE, total - visibleCount).toLocaleString()} more`;
     } else {
       wrap.style.display = 'none';
     }
@@ -1627,12 +1642,14 @@ function renderVS() {
 }
 
 function loadMoreRows() {
-  edRenderLimit += 200;
+  edRenderLimit += ROWS_PER_PAGE;
   renderVS();
 }
 
 function toggleRow(idx, checked) {
   if (checked) selectedIdxs.add(idx); else selectedIdxs.delete(idx);
+  const selectAllChk = document.getElementById('selectAllChk');
+  if (selectAllChk) selectAllChk.checked = editorFiltered.length > 0 && editorFiltered.every(r => selectedIdxs.has(r._idx));
   updateEdStats();
 }
 function toggleSelectAll(checked) {
@@ -1659,18 +1676,16 @@ function selectAllFiltered() {
 }
 
 function selectByPrice() {
-  const threshold = parseFloat(document.querySelector('.ppill.active')?.dataset.price)||5;
-  // Select across ENTIRE dataset matching current non-price filters
-  const search=(document.getElementById('ed-search').value||'').toLowerCase();
-  const bf=document.getElementById('ed-binder-filter').value;
-  const tf='';
+  // Threshold comes from the active price pill ($5 default); the pill itself is
+  // ignored as a filter so the selection spans the ENTIRE dataset.
+  const threshold = parseFloat(document.querySelector('.ppill.active')?.dataset.price) || 5;
+  const f = currentFilters();
+  let added = 0;
   for (const r of editorData) {
-    if (removedIdxs.has(r._idx)) continue;
-    if (search && !r.name.toLowerCase().includes(search)) continue;
-    if (bf && r.binderName!==bf) continue;
-    if (tf && r.binderType!==tf) continue;
-    if (r.price!=null && r.price>=threshold) selectedIdxs.add(r._idx);
+    if (!rowMatches(r, f, { ignorePrice: true, ignoreSelection: true })) continue;
+    if (r.price != null && r.price >= threshold) { selectedIdxs.add(r._idx); added++; }
   }
+  if (!added) alert(`No cards at $${threshold.toFixed(2)} or above match the current filters.`);
   renderVS(); updateEdStats();
 }
 
@@ -1681,12 +1696,12 @@ function applyBulkMove() {
   const dt=document.getElementById('bulk-type-dest').value;
   if (!db && !dt) { alert('Choose a destination binder or type.'); return; }
   for (const idx of selectedIdxs) {
-    const r=editorData.find(x=>x._idx===idx); if(!r) continue;
+    const r=rowByIdx.get(idx); if(!r) continue;
     if (db) r.binderName=db;
     if (dt) r.binderType=dt;
     modifiedIdxs.add(idx);
   }
-  edFilter();
+  edFilter(false);
 }
 
 function removeSelected() {
@@ -1694,50 +1709,70 @@ function removeSelected() {
   if (!confirm(`Permanently remove ${selectedIdxs.size} card(s) from the export?`)) return;
   for (const idx of selectedIdxs) removedIdxs.add(idx);
   selectedIdxs.clear();
-  edFilter();
+  edFilter(false);
 }
 
 // ===== INLINE EDIT =====
 function openEdit(idx, btn) {
-  const row = editorData.find(r=>r._idx===idx); if(!row) return;
+  const row = rowByIdx.get(idx); if(!row) return;
   const binders=[...new Set(editorData.map(r=>r.binderName).filter(Boolean))].sort();
   const bopts=binders.map(b=>`<option value="${esc(b)}"${b===row.binderName?' selected':''}>${esc(b)}</option>`).join('');
+  const types=['binder','list','deck'];
+  const topts=types.map(t=>`<option value="${t}"${t===row.binderType?' selected':''}>${t}</option>`).join('');
   const tr=btn.closest('tr');
   tr.innerHTML=`
     <td><input type="checkbox" ${selectedIdxs.has(idx)?'checked':''} onchange="toggleRow(${idx},this.checked)"></td>
     <td class="td-name-cell" style="font-weight:500">${esc(row.name)}</td>
     <td class="td-set">${esc(row.setCode)}</td>
-    <td></td>
+    <td><select class="inline-edit" id="ie-bt-${idx}">${topts}</select></td>
     <td><select class="inline-edit" id="ie-bn-${idx}" style="width:100%"><option value="">—</option>${bopts}</select></td>
     <td>${row.price!=null?'<span class="price-chip '+pc(row.price)+'">$'+row.price.toFixed(2)+'</span>':'<span class="pc-none">—</span>'}</td>
     <td>
       <button class="edit-btn-sm" style="color:var(--green);border-color:var(--green)" onclick="saveEdit(${idx})">Save</button>
-      <button class="edit-btn-sm" onclick="edFilter()">✕</button>
+      <button class="edit-btn-sm" onclick="cancelEdit()">✕</button>
     </td>`;
 }
 
+function cancelEdit() { edFilter(false); }
+
 function saveEdit(idx) {
-  const row=editorData.find(r=>r._idx===idx); if(!row) return;
+  const row=rowByIdx.get(idx); if(!row) return;
   const bn=document.getElementById(`ie-bn-${idx}`), bt=document.getElementById(`ie-bt-${idx}`);
   if(bn) row.binderName=bn.value;
   if(bt) row.binderType=bt.value;
   modifiedIdxs.add(idx);
-  edFilter();
+  edFilter(false);
 }
 
 // ===== SCRYFALL BATCH PRICE FETCH =====
 let priceFetchStarted = false;
 let priceFetchComplete = false;
 
+function formatEta(seconds) {
+  if (seconds <= 0) return 'Done!';
+  if (seconds < 60) return seconds + 's';
+  const m = Math.floor(seconds / 60), s = seconds % 60;
+  return m + 'm ' + String(s).padStart(2, '0') + 's';
+}
+
 async function fetchAllPricesBatch() {
   priceFetchStarted = true;
+  priceFetchComplete = false;
 
-  // Get unique card names not yet cached
+  // Fetch anything missing a price OR missing advanced data (legacy caches have
+  // prices only, which leaves the mana column and CMC/color filters empty)
   const allNames = [...new Set(editorData.map(r => r.name))];
-  const toFetch = allNames.filter(n => !scryfallCache.hasOwnProperty(norm(n)));
+  const toFetch = allNames.filter(n => {
+    const k = norm(n);
+    return !scryfallCache.hasOwnProperty(k) || !advCache.hasOwnProperty(k);
+  });
   const total = toFetch.length;
 
+  document.getElementById('pl-bar').style.width = '0%';
   document.getElementById('pl-unique').textContent = total.toLocaleString();
+  document.getElementById('pl-priced').textContent = '0';
+  document.getElementById('pl-value').textContent = '$0';
+  document.getElementById('pl-eta').textContent = '—';
   document.getElementById('pl-label').textContent = `Fetching prices for ${total.toLocaleString()} unique cards...`;
 
   if (total === 0) {
@@ -1747,76 +1782,69 @@ async function fetchAllPricesBatch() {
   }
 
   const BATCH = 75;
-  let done = 0;
+  let done = 0, priced = 0, failedBatches = 0;
   const startTime = Date.now();
 
-  for (let i = 0; i < toFetch.length; i += BATCH) {
-    const batch = toFetch.slice(i, i + BATCH);
-
-    // Build Scryfall collection request
-    const identifiers = batch.map(name => ({ name }));
-    try {
-      const resp = await fetch('https://api.scryfall.com/cards/collection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifiers })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        for (const card of (data.data || [])) {
-          const k = norm(card.name);
-          const p = parseFloat(card.prices?.usd || card.prices?.usd_foil || '0');
-          scryfallCache[k] = isNaN(p) ? null : p;
-          // Store advanced data
-          advCache[k] = {
-            cmc: card.cmc || 0,
-            colorIdentity: card.color_identity || [],
-            typeLine: card.type_line || '',
-            manaCost: card.mana_cost || ''
-          };
+  try {
+    for (let i = 0; i < toFetch.length; i += BATCH) {
+      const batch = toFetch.slice(i, i + BATCH);
+      try {
+        const resp = await fetch('https://api.scryfall.com/cards/collection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifiers: batch.map(name => ({ name })) })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          for (const card of (data.data || [])) {
+            const k = norm(card.name);
+            const p = parseFloat(card.prices?.usd || card.prices?.usd_foil || '0');
+            scryfallCache[k] = isNaN(p) ? null : p;
+            if (scryfallCache[k] != null) priced++;
+            advCache[k] = {
+              cmc: card.cmc ?? 0,
+              colorIdentity: card.color_identity || [],
+              typeLine: card.type_line || '',
+              manaCost: card.mana_cost || ''
+            };
+          }
+        } else {
+          failedBatches++;
         }
-        // Mark not-found cards as null
-        for (const name of batch) {
-          const k = norm(name);
-          if (!scryfallCache.hasOwnProperty(k)) scryfallCache[k] = null;
-        }
+      } catch (e) {
+        // Network failure — leave these names unresolved and keep going
+        failedBatches++;
       }
-    } catch (e) {
-      for (const name of batch) { const k=norm(name); if(!scryfallCache.hasOwnProperty(k)) scryfallCache[k]=null; }
-    }
-
-    done += batch.length;
-
-    // Apply prices and advanced data to editorData
-    for (const r of editorData) {
-      const k = norm(r.name);
-      if (r.price == null && scryfallCache.hasOwnProperty(k)) r.price = scryfallCache[k];
-      if (r.cmc == null && advCache.hasOwnProperty(k)) {
-        const d = advCache[k];
-        r.cmc = d.cmc;
-        r.colorIdentity = d.colorIdentity;
-        r.typeLine = d.typeLine;
-        r.manaCost = d.manaCost;
+      // Anything Scryfall did not return (misspelling, token, network error)
+      // is recorded as null so it is not retried forever
+      for (const name of batch) {
+        const k = norm(name);
+        if (!scryfallCache.hasOwnProperty(k)) scryfallCache[k] = null;
       }
+
+      done += batch.length;
+      applyCachedPrices();
+
+      const pct = Math.round((done / total) * 100);
+      const elapsed = (Date.now() - startTime) / 1000;
+      const rate = elapsed > 0 ? done / elapsed : 0;
+      const remaining = rate > 0 ? Math.ceil((total - done) / rate) : 0;
+      const totalVal = editorData.reduce((s,r) => s + (r.price || 0), 0);
+
+      document.getElementById('pl-bar').style.width = pct + '%';
+      document.getElementById('pl-priced').textContent = priced.toLocaleString();
+      document.getElementById('pl-value').textContent = '$' + totalVal.toFixed(2);
+      document.getElementById('pl-eta').textContent = done >= total ? 'Done!' : formatEta(remaining);
+      document.getElementById('pl-label').textContent = `Batch ${Math.floor(i/BATCH)+1} of ${Math.ceil(total/BATCH)} — ${pct}% complete`;
+
+      // Small delay between batches to respect Scryfall's rate limit
+      if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 100));
     }
-
-    // Update loading screen
-    const pct = Math.round((done / total) * 100);
-    const elapsed = (Date.now() - startTime) / 1000;
-    const rate = done / elapsed;
-    const remaining = rate > 0 ? Math.ceil((total - done) / rate) : 0;
-    const totalVal = editorData.reduce((s,r) => s + (r.price || 0), 0);
-
-    document.getElementById('pl-bar').style.width = pct + '%';
-    document.getElementById('pl-priced').textContent = done.toLocaleString();
-    document.getElementById('pl-value').textContent = '$' + totalVal.toFixed(2);
-    document.getElementById('pl-eta').textContent = done >= total ? 'Done!' : remaining + 's';
-    document.getElementById('pl-label').textContent = `Batch ${Math.ceil(i/BATCH)+1} of ${Math.ceil(total/BATCH)} — ${pct}% complete`;
-
-    // Small delay between batches to respect Scryfall
-    if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 100));
+  } catch (e) {
+    console.warn('Price fetch stopped early:', e);
   }
 
+  if (failedBatches) console.warn(`${failedBatches} price batch(es) failed — those cards show no price. Use ↻ Refresh Prices to retry.`);
   onPricesComplete();
 }
 
@@ -1828,10 +1856,7 @@ function onPricesComplete() {
 
   // Init the editor UI now that prices are ready
   edFilter();
-  setupVirtualScroll();
   showEditorContent(true);
-  updateEdStats();
-  renderVS();
   populateVersionDropdown();
   updateCacheInfo();
 }
@@ -1849,9 +1874,6 @@ function applyCachedPrices() {
     }
   }
 }
-
-// Keep schedulePriceFetch as no-op since we fetch everything upfront
-function schedulePriceFetch() {}
 
 // ===== HOVER CARD PREVIEW =====
 function hoverStart(el, event) {
@@ -2007,6 +2029,7 @@ function restoreVersion(idx) {
     document.getElementById('version-select').value = ''; return;
   }
   collectionData = parseCSV(entry.csv);
+  resetEditorState();
   document.getElementById('csvFilename').textContent = 'Restored: ' + entry.label;
   document.getElementById('version-select').value = '';
   document.getElementById('last-saved-info').textContent = 'Restored: ' + entry.label;
@@ -2058,7 +2081,7 @@ function loadScryfallCache() {
   if (!data) return false;
   if (data.scryfallCache) { Object.assign(scryfallCache, data.scryfallCache); }
   if (data.advCache) { Object.assign(advCache, data.advCache); }
-  console.log('Scryfall cache loaded from localStorage —', Object.keys(scryfallCache).length, 'entries, saved:', data.label);
+  console.log('Scryfall cache loaded —', Object.keys(scryfallCache).length, 'prices,', Object.keys(advCache).length, 'card details, saved:', data.label);
   return true;
 }
 
@@ -2085,58 +2108,69 @@ function updateCacheInfo() {
 }
 
 function refreshPrices() {
+  if (!editorData.length) { alert('Load your collection first.'); return; }
   if (!confirm('Refresh all prices from Scryfall? This will re-fetch everything.')) return;
   clearScryfallCache();
   editorReady = false;
   priceFetchStarted = false;
   priceFetchComplete = false;
-  // Reset prices on editorData
+  // Reset prices and card data on editorData
   for (const r of editorData) { r.price = null; r.cmc = null; r.colorIdentity = null; r.typeLine = null; r.manaCost = null; }
   showEditorContent(false);
   fetchAllPricesBatch();
 }
 
 // ===== BOOKMARKLET SETUP =====
+// Called by the bookmarklet in the opened tab so the imported list gets a name
+function setImportedDeckName(name) {
+  currentDeckName = name || '';
+  const el = document.getElementById('listFilename');
+  if (el) el.textContent = name || '';
+  refreshSavedDeckDropdown();
+}
+
 function setupBookmarklet() {
   const siteUrl = 'https://phantomdenied.github.io/Compare/';
-  const code = `javascript:(function(){
-    var cards=[];
-    var rows=document.querySelectorAll('[class*="deckview"],[class*="deck-view"],[class*="CardRow"],[class*="card-row"],[data-testid*="card"]');
-    if(!rows.length){
-      var txt=document.body.innerText;
-      var lines=txt.split('\n').filter(function(l){return /^\d+\s+[A-Z]/.test(l.trim());});
-      cards=lines;
-    } else {
-      rows.forEach(function(r){var t=r.innerText.trim();if(t)cards.push(t);});
-    }
-    if(!cards.length){
-      var all=document.querySelectorAll('[class*="quantity"],[class*="Quantity"]');
-      var names=document.querySelectorAll('[class*="cardName"],[class*="card-name"],[class*="CardName"]');
-      for(var i=0;i<Math.min(all.length,names.length);i++){cards.push(all[i].innerText.trim()+' '+names[i].innerText.trim());}
-    }
-    if(!cards.length){alert('Could not find cards on this page. Make sure you are on a Moxfield deck page.');return;}
-    var list=cards.join('\n');
-    var w=window.open('${siteUrl}','_blank');
-    var tries=0;
-    var iv=setInterval(function(){
-      tries++;
-      try{
-        var ta=w.document.getElementById('targetList');
-        if(ta){ta.value=list;clearInterval(iv);w.document.getElementById('listFilename').textContent='From Moxfield'; if('currentDeckName' in w) w.currentDeckName='From Moxfield';}
-      }catch(e){}
-      if(tries>40)clearInterval(iv);
-    },250);
-  })();`;
+  // Written as one line with escaped newlines — a javascript: URL must not
+  // contain raw line breaks inside its string literals
+  const code = "(function(){" +
+    "var cards=[];" +
+    "var rows=document.querySelectorAll('[class*=\"deckview\"],[class*=\"deck-view\"],[class*=\"CardRow\"],[class*=\"card-row\"],[data-testid*=\"card\"]');" +
+    "if(!rows.length){var lines=document.body.innerText.split('\\n').filter(function(l){return /^\\d+\\s+[A-Za-z]/.test(l.trim());});cards=lines;}" +
+    "else{rows.forEach(function(r){var t=r.innerText.trim();if(t)cards.push(t);});}" +
+    "if(!cards.length){" +
+      "var all=document.querySelectorAll('[class*=\"quantity\"],[class*=\"Quantity\"]');" +
+      "var names=document.querySelectorAll('[class*=\"cardName\"],[class*=\"card-name\"],[class*=\"CardName\"]');" +
+      "for(var i=0;i<Math.min(all.length,names.length);i++){cards.push(all[i].innerText.trim()+' '+names[i].innerText.trim());}" +
+    "}" +
+    "if(!cards.length){alert('Could not find cards on this page. Make sure you are on a Moxfield deck page.');return;}" +
+    "var list=cards.join('\\n');" +
+    "var w=window.open('" + siteUrl + "','_blank');" +
+    "if(!w){alert('Please allow pop-ups for Moxfield so the deck can be sent over.');return;}" +
+    "var tries=0;" +
+    "var iv=setInterval(function(){" +
+      "tries++;" +
+      "try{" +
+        "var ta=w.document.getElementById('targetList');" +
+        "if(ta){ta.value=list;clearInterval(iv);" +
+        "if(typeof w.setImportedDeckName==='function')w.setImportedDeckName('From Moxfield');" +
+        "else{var fn=w.document.getElementById('listFilename');if(fn)fn.textContent='From Moxfield';}}" +
+      "}catch(e){}" +
+      "if(tries>40)clearInterval(iv);" +
+    "},250);" +
+  "})();";
   const el = document.getElementById('bm-link');
-  if (el) el.href = code;
+  if (el) el.href = 'javascript:' + encodeURIComponent(code);
 }
 
 // ===== INIT =====
+loadScryfallCache();
 autoLoadFromLocal();
 setupBookmarklet();
 populateVersionDropdown();
 refreshSavedDeckDropdown();
-console.log('MTG Comparator v1.0 loaded');
+updateCacheInfo();
+console.log('QGs ManaBox Companion v1.5 loaded');
 </script>
 </body>
 </html>
