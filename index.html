@@ -1571,22 +1571,23 @@ function setPricePill(el, val) {
 
 function updateEdStats() {
   const active = editorData.filter(r=>!removedIdxs.has(r._idx));
-  document.getElementById('es-total').textContent = compactNum(active.length);
-  document.getElementById('es-total').title = active.length.toLocaleString();
+  const totalCards = active.reduce((s,r)=>s+qty(r),0);
+  document.getElementById('es-total').textContent = compactNum(totalCards);
+  document.getElementById('es-total').title = `${totalCards.toLocaleString()} cards across ${active.length.toLocaleString()} entries`;
   const priced = active.filter(r=>r.price!=null);
-  const total = priced.reduce((s,r)=>s+r.price,0);
+  const total = priced.reduce((s,r)=>s+r.price*qty(r),0);
   document.getElementById('es-value').textContent = '$' + compactMoney(total);
   document.getElementById('es-value').title = '$' + total.toFixed(2);
-  const over5Count = active.filter(r=>r.price!=null&&r.price>=5).length;
-  document.getElementById('es-over5').textContent = compactNum(over5Count);
-  document.getElementById('es-over5').title = over5Count.toLocaleString();
+  const over5Qty = active.filter(r=>r.price!=null&&r.price>=5).reduce((s,r)=>s+qty(r),0);
+  document.getElementById('es-over5').textContent = compactNum(over5Qty);
+  document.getElementById('es-over5').title = over5Qty.toLocaleString();
   document.getElementById('es-modified').textContent = compactNum(modifiedIdxs.size);
   document.getElementById('es-modified').title = modifiedIdxs.size.toLocaleString();
   document.getElementById('ef-showing').textContent = editorFiltered.length.toLocaleString();
   document.getElementById('ef-total').textContent = active.length.toLocaleString();
   document.getElementById('ef-modified').textContent = modifiedIdxs.size+' modified';
   document.getElementById('ef-removed').textContent = removedIdxs.size+' removed';
-  const selVal=[...selectedIdxs].reduce((s,i)=>s+(rowByIdx.get(i)?.price||0),0);
+  const selVal=[...selectedIdxs].reduce((s,i)=>{const r=rowByIdx.get(i); return r?s+(r.price||0)*qty(r):s;},0);
   document.getElementById('bulk-count').textContent = compactNum(selectedIdxs.size)+' selected';
   document.getElementById('bulk-val').textContent = selectedIdxs.size>0?`· $${compactMoney(selVal)} selected value`:'';
 }
@@ -1829,7 +1830,7 @@ async function fetchAllPricesBatch() {
       const elapsed = (Date.now() - startTime) / 1000;
       const rate = elapsed > 0 ? done / elapsed : 0;
       const remaining = rate > 0 ? Math.ceil((total - done) / rate) : 0;
-      const totalVal = editorData.reduce((s,r) => s + (r.price || 0), 0);
+      const totalVal = editorData.reduce((s,r) => s + (r.price || 0) * qty(r), 0);
 
       document.getElementById('pl-bar').style.width = pct + '%';
       document.getElementById('pl-priced').textContent = priced.toLocaleString();
@@ -1929,6 +1930,9 @@ function downloadCSV() {
 
 function csvQ(v) { const s=String(v??''); return (s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s; }
 function pc(p) { return p<1?'pc-low':p<5?'pc-mid':p<20?'pc-high':'pc-vhigh'; }
+// Physical copy count for a row — ManaBox stacks duplicates onto one CSV row
+// via the quantity column, so "how many cards" always means qty(r), not 1.
+function qty(r) { const n = parseInt(r.quantity, 10); return Number.isFinite(n) && n > 0 ? n : 1; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ===== CHUNKED LOCALSTORAGE HELPERS =====
