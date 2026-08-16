@@ -904,7 +904,7 @@ async function parseCSVAsync(text, filenameElId) {
   }
 
   collectionData = rows;
-  document.getElementById('csvFilename').textContent = 'Loaded — ' + rows.length.toLocaleString() + ' cards';
+  document.getElementById('csvFilename').textContent = 'Loaded — ' + rows.length.toLocaleString() + ' entries (' + totalQty(rows).toLocaleString() + ' cards)';
   updateCompareProgress(dataTotal, dataTotal, 'Done!');
   setTimeout(() => showCompareProgress(false), 1500);
   console.log('Loaded', rows.length, 'rows');
@@ -1933,6 +1933,7 @@ function pc(p) { return p<1?'pc-low':p<5?'pc-mid':p<20?'pc-high':'pc-vhigh'; }
 // Physical copy count for a row — ManaBox stacks duplicates onto one CSV row
 // via the quantity column, so "how many cards" always means qty(r), not 1.
 function qty(r) { const n = parseInt(r.quantity, 10); return Number.isFinite(n) && n > 0 ? n : 1; }
+function totalQty(rows) { return rows.reduce((s,r)=>s+qty(r),0); }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ===== CHUNKED LOCALSTORAGE HELPERS =====
@@ -2063,7 +2064,7 @@ function autoLoadFromLocal() {
     if (collectionData.length) {
       document.getElementById('csvFilename').textContent = 'Auto-loaded — ' + latest.label;
       document.getElementById('autoload-banner').style.display = 'flex';
-      document.getElementById('autoload-msg').textContent = `📦 Collection auto-loaded from save: ${latest.label} (${collectionData.length.toLocaleString()} cards)`;
+      document.getElementById('autoload-msg').textContent = `📦 Collection auto-loaded from save: ${latest.label} (${collectionData.length.toLocaleString()} entries, ${totalQty(collectionData).toLocaleString()} cards)`;
       console.log('Auto-loaded', collectionData.length, 'rows from localStorage');
     }
   } catch(e) { console.warn('Auto-load failed:', e); }
